@@ -1,0 +1,6 @@
+- name: Remove database
+  hosts: localhost
+  tasks:
+    - name: Drop database
+      shell: |
+        mysql -u root -ppass -e "DROP DATABASE IF EXISTS subscribersdb;"
