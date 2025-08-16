@@ -1,3 +1,0 @@
-USE subscribersdb;
-
-ALTER TABLE subscribers ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
