@@ -1,0 +1,74 @@
+name: CI – Flyway + Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: subscribersdb
+          MYSQL_USER: subuser
+          MYSQL_PASSWORD: subpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -prootpass --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..60}; do
+            mysqladmin ping -h 127.0.0.1 -prootpass --silent && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Initial migrations
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/migrations/initial:/flyway/sql" \
+            flyway/flyway:10-alpine \
+            -url="jdbc:mysql://127.0.0.1:3306/subscribersdb" \
+            -user="subuser" -password="subpass" migrate
+
+      - name: Incremental migrations
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/migrations/incremental:/flyway/sql" \
+            flyway/flyway:10-alpine \
+            -url="jdbc:mysql://127.0.0.1:3306/subscribersdb" \
+            -user="subuser" -password="subpass" migrate
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_NAME: subscribersdb
+          DB_USER: subuser
+          DB_PASS: subpass
+        run: python -m unittest -v tests/test_subscribers.py
+
+      - name: Done
+        run: echo "✅ Deployment done"

@@ -4,3 +4,48 @@
     - name: Run Flyway initial migrations
       shell: |
         flyway -url=jdbc:mysql://localhost:3306/subscribersdb -user=root -password=pass -locations=filesystem:./migrations migrate
+
+---
+- name: bootstrap mysql
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Install client + Python MySQL libs
+      ansible.builtin.apt:
+        update_cache: yes
+        state: present
+        name:
+          - mysql-client
+          - python3-pymysql
+          - python3-mysql.connector
+
+    - name: Start docker compose
+      ansible.builtin.command: docker compose up -d
+
+    - name: Wait for port 3307
+      ansible.builtin.wait_for:
+        host: "127.0.0.1"
+        port: 3307
+        delay: 1
+        timeout: 240
+
+    - name: Initial migrations (compose network)
+      ansible.builtin.command: >
+        docker run --rm
+        --network {{ lookup('pipe', 'docker network ls --format {{.Name}} | grep _default | head -n1') }}
+        -v "{{ playbook_dir | dirname }}/migrations/initial:/flyway/sql"
+        flyway/flyway:10-alpine
+        -url="jdbc:mysql://db:3306/subscribersdb"
+        -user="subuser" -password="subpass" migrate
+
+    - name: Incremental migrations (compose network)
+      ansible.builtin.command: >
+        docker run --rm
+        --network {{ lookup('pipe', 'docker network ls --format {{.Name}} | grep _default | head -n1') }}
+        -v "{{ playbook_dir | dirname }}/migrations/incremental:/flyway/sql"
+        flyway/flyway:10-alpine
+        -url="jdbc:mysql://db:3306/subscribersdb"
+        -user="subuser" -password="subpass" migrate

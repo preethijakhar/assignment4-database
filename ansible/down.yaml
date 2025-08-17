@@ -4,3 +4,12 @@
     - name: Drop database
       shell: |
         mysql -u root -ppass -e "DROP DATABASE IF EXISTS subscribersdb;"
+
+---
+- name: remove mysql
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Stop & remove containers + volumes
+      ansible.builtin.command: docker compose down -v
