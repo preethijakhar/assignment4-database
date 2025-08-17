@@ -1,0 +1,6 @@
+- name: Set up database with Flyway
+  hosts: localhost
+  tasks:
+    - name: Run Flyway initial migrations
+      shell: |
+        flyway -url=jdbc:mysql://localhost:3306/subscribersdb -user=root -password=pass -locations=filesystem:./migrations migrate
